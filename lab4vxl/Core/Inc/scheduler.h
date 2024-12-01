@@ -1,23 +1,28 @@
-#ifndef SCHEDULER_H
-#define SCHEDULER_H
+#ifndef SCHEDULER_H_
+#define SCHEDULER_H_
 
 #include <stdint.h>
 
-#define SCH_MAX_TASKS 10
-#define NO_TASK_ID 0xFFFFFFFF
+// Constants
+#define SCHEDULER_MAX_TASKS 10
+#define TASK_ID_NONE 0xFFFFFFFF
 
+// Task structure definition
 typedef struct {
-    void (*taskFunction)(void);  // Con trỏ hàm tác vụ
-    uint32_t delay;              // Độ trễ ban đầu (ms)
-    uint32_t period;             // Chu kỳ lặp (ms, 0 nếu không lặp)
-    uint8_t isReady;             // Cờ đánh dấu tác vụ đã sẵn sàng thực thi
-    uint32_t taskId;             // ID của tác vụ
-} SchedulerTask;
+    void (*callback)(void);  // Function pointer to the task
+    uint32_t delay;          // Initial delay before execution
+    uint32_t interval;       // Periodic interval (0 for one-time tasks)
+    uint8_t executeCount;    // Number of times the task is ready to run
+    uint32_t taskID;         // Unique task ID
+} Task;
 
-void SCH_Init(void);
-uint32_t SCH_AddTask(void (*taskFunction)(void), uint32_t delay, uint32_t period);
-uint8_t SCH_DeleteTask(uint32_t taskId);
-void SCH_Update(void);
-void SCH_DispatchTasks(void);
+// Function prototypes
+void Scheduler_Init(void);
+uint32_t Scheduler_Add_Task(void (*callback)(void), uint32_t delay, uint32_t interval);
+uint8_t Scheduler_Remove_Task(uint32_t taskID);
+void Scheduler_Update(void);
+void Scheduler_Dispatch(void);
+void Scheduler_Clear_Task(Task* task);
 
-#endif // SCHEDULER_H
+
+#endif /* SCHEDULER_H_ */

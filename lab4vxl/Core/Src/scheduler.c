@@ -1,90 +1,96 @@
 #include "scheduler.h"
 
-static SchedulerTask SCH_tasks[SCH_MAX_TASKS];  // Danh sách các tác vụ
-static uint32_t currentTaskId = 1;              // ID bắt đầu từ 1
+// Array to store tasks
+static Task schedulerTasks[SCHEDULER_MAX_TASKS];
+static uint32_t nextTaskID = 1;  // Task ID counter
 
 /**
- * @brief Khởi tạo scheduler, đặt tất cả các task về trạng thái không hợp lệ.
+ * @brief Initialize the scheduler.
  */
-void SCH_Init(void) {
-    for (int i = 0; i < SCH_MAX_TASKS; i++) {
-        SCH_tasks[i].taskFunction = (void *)0;  // Đặt giá trị mặc định
-        SCH_tasks[i].delay = 0;
-        SCH_tasks[i].period = 0;
-        SCH_tasks[i].isReady = 0;
-        SCH_tasks[i].taskId = NO_TASK_ID;      // Đánh dấu ô trống
+void Scheduler_Init(void) {
+    for (int i = 0; i < SCHEDULER_MAX_TASKS; i++) {
+        Scheduler_Clear_Task(&schedulerTasks[i]);
     }
 }
 
 /**
- * @brief Thêm một tác vụ mới vào danh sách scheduler.
- * @param taskFunction Con trỏ hàm callback của tác vụ.
- * @param delay Thời gian trễ (ms) trước khi thực thi lần đầu.
- * @param period Chu kỳ lặp lại (ms), 0 nếu chỉ chạy 1 lần.
- * @return ID của tác vụ hoặc NO_TASK_ID nếu thất bại.
+ * @brief Clear a specific task.
+ * @param task Pointer to the task to clear.
  */
-uint32_t SCH_AddTask(void (*taskFunction)(void), uint32_t delay, uint32_t period) {
-    for (int i = 0; i < SCH_MAX_TASKS; i++) {
-        if (SCH_tasks[i].taskId == NO_TASK_ID) {  // Tìm ô trống bằng cách kiểm tra taskId
-            SCH_tasks[i].taskFunction = taskFunction;
-            SCH_tasks[i].delay = delay;
-            SCH_tasks[i].period = period;
-            SCH_tasks[i].isReady = 0;
-            SCH_tasks[i].taskId = currentTaskId++;
-            return SCH_tasks[i].taskId;  // Trả về ID của tác vụ
+void Scheduler_Clear_Task(Task* task) {
+    task->callback = 0;
+    task->delay = 0;
+    task->interval = 0;
+    task->executeCount = 0;
+    task->taskID = TASK_ID_NONE;
+}
+
+/**
+ * @brief Add a new task to the scheduler.
+ * @param callback Function pointer to the task to be scheduled.
+ * @param delay Initial delay before the task is first executed.
+ * @param interval Time interval for periodic tasks (0 for one-time tasks).
+ * @return The assigned Task ID, or TASK_ID_NONE if the task could not be added.
+ */
+uint32_t Scheduler_Add_Task(void (*callback)(void), uint32_t delay, uint32_t interval) {
+    for (int i = 0; i < SCHEDULER_MAX_TASKS; i++) {
+        if (schedulerTasks[i].callback == 0) {  // Find an empty slot
+            schedulerTasks[i].callback = callback;
+            schedulerTasks[i].delay = delay;
+            schedulerTasks[i].interval = interval;
+            schedulerTasks[i].executeCount = 0;
+            schedulerTasks[i].taskID = nextTaskID++;
+            return schedulerTasks[i].taskID;
         }
     }
-    return NO_TASK_ID;  // Không còn chỗ trống
+    return TASK_ID_NONE;  // No space available for a new task
 }
 
 /**
- * @brief Xóa một tác vụ khỏi danh sách scheduler.
- * @param taskId ID của tác vụ cần xóa.
- * @return 1 nếu xóa thành công, 0 nếu thất bại.
+ * @brief Remove a task from the scheduler using its Task ID.
+ * @param taskID The ID of the task to remove.
+ * @return 1 if the task was successfully removed, 0 otherwise.
  */
-uint8_t SCH_DeleteTask(uint32_t taskId) {
-    for (int i = 0; i < SCH_MAX_TASKS; i++) {
-        if (SCH_tasks[i].taskId == taskId) {  // Tìm tác vụ theo ID
-            SCH_tasks[i].taskFunction = (void *)0;  // Đặt lại giá trị mặc định
-            SCH_tasks[i].delay = 0;
-            SCH_tasks[i].period = 0;
-            SCH_tasks[i].isReady = 0;
-            SCH_tasks[i].taskId = NO_TASK_ID;  // Đánh dấu ô trống
-            return 1;  // Xóa thành công
+uint8_t Scheduler_Remove_Task(uint32_t taskID) {
+    for (int i = 0; i < SCHEDULER_MAX_TASKS; i++) {
+        if (schedulerTasks[i].taskID == taskID) {
+            Scheduler_Clear_Task(&schedulerTasks[i]);
+            return 1;  // Task successfully removed
         }
     }
-    return 0;  // Không tìm thấy tác vụ
+    return 0;  // Task not found
 }
 
 /**
- * @brief Hàm cập nhật trạng thái của tất cả tác vụ.
- * Gọi hàm này trong ngắt timer định kỳ 1ms.
+ * @brief Update the scheduler, decrementing delays and marking tasks ready to execute.
  */
-void SCH_Update(void) {
-    for (int i = 0; i < SCH_MAX_TASKS; i++) {
-        if (SCH_tasks[i].taskId != NO_TASK_ID) {  // Chỉ xử lý các task hợp lệ
-            if (SCH_tasks[i].delay == 0) {
-                SCH_tasks[i].isReady = 1;  // Task sẵn sàng thực thi
-                if (SCH_tasks[i].period > 0) {  // Lặp lại
-                    SCH_tasks[i].delay = SCH_tasks[i].period;
+void Scheduler_Update(void) {
+    for (int i = 0; i < SCHEDULER_MAX_TASKS; i++) {
+        Task* task = &schedulerTasks[i];
+        if (task->callback != 0) {
+            if (task->delay == 0) {
+                task->executeCount++;
+                if (task->interval > 0) {
+                    task->delay = task->interval;  // Reset delay for periodic tasks
                 }
             } else {
-                SCH_tasks[i].delay--;  // Giảm độ trễ
+                task->delay--;
             }
         }
     }
 }
 
 /**
- * @brief Thực thi tất cả các tác vụ đã sẵn sàng.
+ * @brief Execute tasks that are ready to run.
  */
-void SCH_DispatchTasks(void) {
-    for (int i = 0; i < SCH_MAX_TASKS; i++) {
-        if (SCH_tasks[i].isReady) {
-            SCH_tasks[i].isReady = 0;       // Reset trạng thái
-            (*SCH_tasks[i].taskFunction)(); // Thực thi callback
-            if (SCH_tasks[i].period == 0) { // Nếu không lặp lại, xóa task
-                SCH_DeleteTask(SCH_tasks[i].taskId);
+void Scheduler_Dispatch(void) {
+    for (int i = 0; i < SCHEDULER_MAX_TASKS; i++) {
+        Task* task = &schedulerTasks[i];
+        if (task->executeCount > 0) {
+            task->callback();  // Execute the task
+            task->executeCount--;
+            if (task->interval == 0) {
+                Scheduler_Clear_Task(task);  // Remove one-time tasks
             }
         }
     }

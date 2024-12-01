@@ -108,20 +108,20 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  SCH_AddTask(toggleRed, 100, 0);
-  SCH_AddTask(toggleGreen,1000, 0);
-  SCH_AddTask(toggleYellow, 200, 0);
-  SCH_AddTask(toggleBlue, 500, 0);
-  SCH_AddTask(togglePink, 400, 0);
+  Scheduler_Add_Task(toggleRed, 150, 0);
+  Scheduler_Add_Task(toggleGreen,200, 0);
+  Scheduler_Add_Task(toggleYellow, 200, 0);
+  Scheduler_Add_Task(toggleBlue, 500, 0);
+  Scheduler_Add_Task(togglePink, 350, 0);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  HAL_TIM_Base_Start_IT(&htim2);
   while (1)
   {
     /* USER CODE END WHILE */
-	  SCH_DispatchTasks();
-    /* USER CODE BEGIN 3 */
+	  Scheduler_Dispatch();    /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
@@ -235,8 +235,8 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-	SCH_Update();
-}
+	        Scheduler_Update();
+	    }
 /* USER CODE END 4 */
 
 /**
